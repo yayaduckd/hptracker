@@ -15,7 +15,7 @@
 #include "hardware/sync.h" // for the interrupts
 
 
-const uint BOARD_LED_PIN = CYW43_WL_GPIO_LED_PIN;
+const uint8_t BOARD_LED_PIN = CYW43_WL_GPIO_LED_PIN;
 
 typedef struct {
     spi_inst_t *port;
