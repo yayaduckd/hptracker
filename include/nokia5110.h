@@ -2,6 +2,7 @@
 #define NOKIA5110_HPP
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "hardware/gpio.h"
 #include "hardware/spi.h"
@@ -9,6 +10,9 @@
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
 #include <stdio.h>
+#include "hardware/flash.h" // for the flash erasing and writing
+#include "pico/flash.h"
+#include "hardware/sync.h" // for the interrupts
 
 
 const uint BOARD_LED_PIN = CYW43_WL_GPIO_LED_PIN;
