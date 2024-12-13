@@ -2,15 +2,18 @@
 #define NOKKIA5110_SHAPES_HPP
 
 #include "nokia5110.h"
+extern "C" {
+	#include "dwm_pico_5110_LCD.h"
+}
+#include "sprites.h"
 
 const uint16_t duck[] = {0b0000000001110000, 0b0000000011001100, 0b0000000011001110, 0b0001111110001000,
 						 0b0011000000001000, 0b0011111111110000, 0b0000100001000000, 0b0000110001100000};
 
 
 // Function Declarations
-void fillBlack(Nokia5110 *lcd);
-void drawPixel(Nokia5110 *lcd, int x, int y, bool black);
+void drawSprite(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const uint8_t *data, bool transparent, bool black);
+void drawHealthBar(int health, int maxHealth);
 void drawDuck(Nokia5110 *lcd, int x, int y);
-void drawRectangle(Nokia5110 *lcd, int x, int y, int width, int height, bool fill, bool black);
 
 #endif // NOKKIA5110_SHAPES_HPP
