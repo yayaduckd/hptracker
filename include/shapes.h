@@ -13,6 +13,7 @@ const uint16_t duck[] = {0b0000000001110000, 0b0000000011001100, 0b0000000011001
 
 // Function Declarations
 void drawSprite(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const uint8_t *data, bool transparent, bool black);
+void drawRectangle(uint8_t x0, uint8_t y0, uint8_t width, uint8_t height, bool black, bool fill);
 void drawHealthBar(int health, int maxHealth);
 void drawDuck(Nokia5110 *lcd, int x, int y);
 

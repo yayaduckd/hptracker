@@ -116,7 +116,9 @@ typedef struct {
 	uint16_t maxHealth;
 	uint16_t lastChangeTime;
 
-	Mode mode;
+	uint8_t menuIndex = 0;
+
+	Mode mode = Normal;
 } GameState;
 
 GameState state;
@@ -152,6 +154,15 @@ typedef struct {
 
 void saveStateToFlash(GameState state) {
 
+	LCD_clrScr();
+	char line1[16];
+	char line2[16];
+	snprintf(line1, sizeof(line1), "Saving state");
+	snprintf(line2, sizeof(line2), "to flash...");
+	LCD_print(line1, 0, 0);
+	LCD_print(line2, 0, 1);
+	cyw43_arch_gpio_put(BOARD_LED_PIN, 0);
+
 	SaveData saveData = {state.health, state.maxHealth};
 
 	// buffer with page size
@@ -172,6 +183,10 @@ void saveStateToFlash(GameState state) {
 
 	rc = flash_safe_execute(call_flash_range_program, params, UINT32_MAX);
 	hard_assert(rc == PICO_OK);
+
+	cyw43_arch_gpio_put(BOARD_LED_PIN, 1);
+	sleep_ms(1000);
+	LCD_clrScr();
 }
 
 static void readStateFromFlash(SaveData *saveData) {
@@ -220,12 +235,12 @@ static void updateGameStateFromInput(GameState *state, ButtonHeldTimes *heldTime
 
 	if (setMax) {
 		if (currentButtons->left)
-			state->maxHealth -= state->maxHealth - leftIncrement < 0 ? state->maxHealth : leftIncrement;
+			state->maxHealth -= state->maxHealth < leftIncrement ? state->maxHealth : leftIncrement;
 		if (currentButtons->right)
 			state->maxHealth +=
 				state->maxHealth + rightIncrement > UINT16_MAX ? UINT16_MAX - state->maxHealth : rightIncrement;
 	} else {
-		if (currentButtons->left) state->health -= state->health - leftIncrement < 0 ? state->health : leftIncrement;
+		if (currentButtons->left) state->health -= state->health < leftIncrement ? state->health : leftIncrement;
 		if (currentButtons->right)
 			state->health +=
 				state->health + rightIncrement > state->maxHealth ? state->maxHealth - state->health : rightIncrement;
@@ -251,15 +266,49 @@ static void clampValues(GameState *state) {
 //--------------------------------------
 
 static void renderNormalModeUI(const GameState *state) {
-	if (state->maxHealth > 0) {
-		drawSprite(0, 0, DNDLOGO_WIDTH, DNDLOGO_HEIGHT, DNDLOGO_DATA, false, true);
-		drawHealthBar(state->health, state->maxHealth);
-		LCD_refreshScr();
-	}
+	// if (state->maxHealth > 0) {
+	drawSprite(0, 0, DNDLOGO_WIDTH, DNDLOGO_HEIGHT, DNDLOGO_DATA, false, true);
+	drawHealthBar(state->health, state->maxHealth);
+	LCD_refreshScr();
+	// }
 
 	char healthStr[16];
 	snprintf(healthStr, sizeof(healthStr), "%d/%d", state->health, state->maxHealth);
 	LCD_print(healthStr, UI_HEALTH_TEXT_X, UI_HEALTH_TEXT_Y);
+}
+
+static const char menuOptions[3][16] = {
+	"Set Max Health",
+	"Save to Flash",
+	"Return",
+};
+static void renderMenuUI(const GameState *state) {
+
+	drawSprite(0, 0, DNDLOGO_WIDTH, DNDLOGO_HEIGHT, DNDLOGO_DATA, false, true);
+	// three squares to represent the menu options
+	drawRectangle(10, 15, 15, 15, true, state->menuIndex == 0);
+	// white inside if not selected
+	if (state->menuIndex != 0) {
+		drawRectangle(11, 16, 13, 13, false, true);
+	}
+	drawRectangle(30, 15, 15, 15, true, state->menuIndex == 1);
+	if (state->menuIndex != 1) {
+		drawRectangle(31, 16, 13, 13, false, true);
+	}
+	drawRectangle(50, 15, 15, 15, true, state->menuIndex == 2);
+	if (state->menuIndex != 2) {
+		drawRectangle(51, 16, 13, 13, false, true);
+	}
+	LCD_refreshScr();
+
+	char line1[16];
+	snprintf(line1, sizeof(line1), "Menu");
+	LCD_printCenter(line1, 4, 5);
+
+	char line2[16];
+	snprintf(line2, sizeof(line2), menuOptions[state->menuIndex]);
+	int length = strlen(menuOptions[state->menuIndex]);
+	LCD_printCenter(line2, length, 4);
 }
 
 static void showIntroSequence() {
@@ -352,6 +401,62 @@ void maxHealthMode(GameState &state) {
 	clampValues(&state);
 }
 
+void menuMode(GameState &state) {
+	// Render current state
+	renderMenuUI(&state);
+
+	// Read buttons
+	int currentTime = to_ms_since_boot(get_absolute_time());
+
+	// If within the hold-increase delay, ignore button inputs
+	bool withinDelay = (currentTime - state.lastChangeTime < HOLD_INCREASE_DELAY);
+	if (withinDelay) {
+		// Ignore inputs
+		currentButtons.left = false;
+		currentButtons.right = false;
+		currentButtons.ok = false;
+	} else {
+		// Update held times if not within delay period
+		updateHeldTimes(&heldTimes, &currentButtons);
+	}
+
+	if (currentButtons.right) {
+		state.menuIndex++;
+		if (state.menuIndex > 2) {
+			state.menuIndex = 0;
+		}
+	}
+	if (currentButtons.left) {
+		if (state.menuIndex == 0) {
+			state.menuIndex = 2;
+		} else {
+			state.menuIndex--;
+		}
+	}
+	if (currentButtons.ok) {
+		if (state.menuIndex == 0) {
+			state.mode = SetMaxHealth;
+		} else if (state.menuIndex == 1) {
+			saveStateToFlash(state);
+			state.mode = Normal;
+		} else {
+			state.mode = Normal;
+		}
+		LCD_clrBuff();
+		LCD_clrScr();
+		resetHeldTimes(&heldTimes);
+		currentButtons.ok = false;
+		currentButtons.left = false;
+		currentButtons.right = false;
+		sleep_ms(500);
+	}
+	// Update game state based on current inputs
+	if (currentButtons.left || currentButtons.right || currentButtons.ok) {
+		state.lastChangeTime = currentTime;
+	}
+	resetHeldTimes(&heldTimes);
+}
+
 int main() {
 
 	bi_decl(bi_program_description("This is a test binary."));
@@ -391,39 +496,26 @@ int main() {
 			normalMode(state);
 			break;
 		case Menu:
+			menuMode(state);
 			break;
 		case SetMaxHealth:
 			maxHealthMode(state);
 			break;
 		}
 
-        // Handle mode changes
-        if (currentButtons.ok && heldTimes.ok > 4) {
-            if (state.mode == Normal) {
-                state.mode = SetMaxHealth;
-            } else if (state.mode == SetMaxHealth) {
-                state.mode = Normal;
-            }
-            LCD_clrBuff();
-            LCD_clrScr();
-            resetHeldTimes(&heldTimes);
-        }
-
-		// // Save state to flash
-		// if (currentButtons.ok && !currentButtons.left && !currentButtons.right && heldTimes.ok > 10) {
-		// 	LCD_clrScr();
-		// 	char line1[16];
-		// 	char line2[16];
-		// 	snprintf(line1, sizeof(line1), "Saving state");
-		// 	snprintf(line2, sizeof(line2), "to flash...");
-		// 	LCD_print(line1, 0, 0);
-		// 	LCD_print(line2, 0, 1);
-		// 	cyw43_arch_gpio_put(BOARD_LED_PIN, 0);
-		// 	saveStateToFlash(state);
-		// 	cyw43_arch_gpio_put(BOARD_LED_PIN, 1);
-		// 	sleep_ms(1000);
-		// 	LCD_clrScr();
-		// }
+		// Handle mode changes
+		if (currentButtons.ok && state.mode != Menu) {
+			// if (state.mode == Normal) {
+			// 	state.mode = SetMaxHealth;
+			// } else if (state.mode == SetMaxHealth) {
+			// 	state.mode = Normal;
+			// }
+			state.mode = Menu;
+			LCD_clrBuff();
+			LCD_clrScr();
+			sleep_ms(200);
+			resetHeldTimes(&heldTimes);
+		}
 
 		// Delay to prevent busy loop
 		sleep_ms(LOOP_DELAY_MS);

@@ -1,7 +1,7 @@
 #include "shapes.h"
 
-
-void drawSprite(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const uint8_t *data, bool transparent, bool black) {
+void drawSprite(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const uint8_t *data, bool transparent,
+				bool black) {
 	for (int i = 0; i < (width * height); i++) {
 		int x1 = i % width;
 		int y1 = i / width;
@@ -47,12 +47,18 @@ void drawHealthBar(int health, int maxHealth) {
 	const uint8_t rectWidth = 48;
 	const uint8_t rectHeight = 7;
 
-
-	const uint8_t healthWidth = ((float) health / (float) maxHealth) * rectWidth;
+	const uint8_t healthWidth = ((float)health / (float)maxHealth) * rectWidth;
 	const int remainingWidth = rectWidth - healthWidth;
 	const uint8_t healthHeight = rectHeight;
 
 	drawSprite(x, y, SPRITE_HP_COUNTOUR_WIDTH, SPRITE_HP_COUNTOUR_HEIGHT, SPRITE_HP_COUNTOUR_DATA, false, true);
+	if (maxHealth == 0) {
+		drawRectangle(rectx, recty, rectWidth, healthHeight, true, true);
+		return;
+	} else if (health == 0) {
+		drawRectangle(rectx, recty, rectWidth, healthHeight, false, true);
+		return;
+	}
 	drawRectangle(rectx, recty, healthWidth, healthHeight, true, true);
 	drawRectangle(rectx + healthWidth, recty, remainingWidth, healthHeight, false, true);
 }
